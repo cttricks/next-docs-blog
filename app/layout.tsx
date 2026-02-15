@@ -20,6 +20,7 @@ export default function RootLayout({
             <div className="nav-links">
               <a href="/">Home</a>
               <a href="/about">About</a>
+              <a href="/blogs">Blogs</a>
             </div>
           </div>
         </nav>
