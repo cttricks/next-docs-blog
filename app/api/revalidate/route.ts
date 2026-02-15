@@ -1,21 +1,20 @@
 import { revalidatePath } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
-import { isValidSlug } from '@/lib/blog'
+import { isValidSlug, isCallbackHashValid } from '@/lib/google-cms'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { slug, secret } = body
 
-    if (!slug) {
+    if (!slug || !secret) {
       return NextResponse.json(
-        { success: false, error: 'Missing slug parameter' },
+        { success: false, error: 'Missing required parameter' },
         { status: 400 }
       )
     }
 
-    const revalidateSecret = process.env.REVALIDATE_SECRET
-    if (revalidateSecret && secret !== revalidateSecret) {
+    if (!isCallbackHashValid(slug, secret)) {
       return NextResponse.json(
         { success: false, error: 'Invalid secret' },
         { status: 401 }
@@ -24,13 +23,13 @@ export async function POST(request: NextRequest) {
 
     if (!isValidSlug(slug)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid slug format' },
+        { success: false, error: 'Invalid slug format', slug },
         { status: 400 }
       )
     }
 
     // Invalidate route cache
-    revalidatePath(`/blogs/${slug}`)
+    revalidatePath(`${slug}`)
 
     return NextResponse.json({
       success: true,
@@ -49,7 +48,6 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   return NextResponse.json({
-    message:
-      'Send POST request with { "slug": "article-slug", "secret": "optional-secret" }',
+    message: 'API Endpoint Is Running Smoothly',
   })
 }

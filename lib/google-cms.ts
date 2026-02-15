@@ -1,10 +1,15 @@
 import axios from "axios";
+import crypto from "crypto";
+import { cache } from "react";
 
 const APPS_SCRIPT_DEPLOYMENT_ID = process.env.APPS_SCRIPT_DEPLOYMENT_ID || "";
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
+const CALLBACK_SECRET = process.env.CALLBACK_SECRET || "";
 
 export interface BlogMetadata {
+    slug: string;
     title: string;
+    keywords: string;
     description: string;
     ogTitle?: string;
     ogDescription?: string;
@@ -18,18 +23,38 @@ export interface BlogContent {
     metadata: BlogMetadata;
 }
 
+export interface BlogsList {
+    status: string;
+    items: BlogMetadata[];
+}
+
 /**
  * Slug validation (same as before)
  */
 export function isValidSlug(slug: string): boolean {
-    const validSlugPattern = /^[a-zA-Z0-9_-]+$/;
+    const validSlugPattern = /^[a-zA-Z0-9_/-]+$/;
 
     if (!validSlugPattern.test(slug)) return false;
-    if (slug.includes("..") || slug.includes("/") || slug.includes("\\")) {
+    if (slug.includes("..") || slug.includes("\\")) {
         return false;
     }
 
     return true;
+}
+
+/**
+ * Callback Hash Composer & Validator
+ */
+
+export function isCallbackHashValid(input: string, hash: string): boolean {
+    if (!CALLBACK_SECRET) return false;
+
+    const localHash = crypto
+        .createHash("sha256")
+        .update(`${CALLBACK_SECRET}:${input}`)
+        .digest("hex");
+
+    return localHash === hash;
 }
 
 /**
@@ -56,7 +81,8 @@ export async function articleExists(
  * Same return structure as file-based version
  */
 export async function getArticle(
-    slug: string
+    slug: string,
+    endpoint: string
 ): Promise<BlogContent> {
     if (!isValidSlug(slug)) {
         throw new Error("Invalid slug");
@@ -70,7 +96,7 @@ export async function getArticle(
         `https://script.google.com/macros/s/${APPS_SCRIPT_DEPLOYMENT_ID}/exec`,
         {
             params: {
-                endpoint: "content",
+                endpoint: endpoint,
                 source: GOOGLE_SHEET_ID,
                 slug,
             },
@@ -92,3 +118,36 @@ export async function getArticle(
         metadata,
     };
 }
+
+export async function getArticles(
+    endpoint: string
+): Promise<BlogMetadata[]> {
+    if (!APPS_SCRIPT_DEPLOYMENT_ID || !GOOGLE_SHEET_ID) {
+        throw new Error("CMS not configured");
+    }
+
+    const { data } = await axios.get(
+        `https://script.google.com/macros/s/${APPS_SCRIPT_DEPLOYMENT_ID}/exec`,
+        {
+            params: {
+                endpoint: endpoint,
+                source: GOOGLE_SHEET_ID,
+            },
+        }
+    );
+
+    if (!data || data.error) {
+        return [];
+    }
+
+    const blogs = data as BlogsList;
+    return blogs.items;
+
+}
+
+// This is to prevent multiple api-calls on same endpoint till next is composing the page
+export const getCachedArticle = cache(
+    async (slug: string, endpoint: string) => {
+        return getArticle(slug, endpoint);
+    }
+);

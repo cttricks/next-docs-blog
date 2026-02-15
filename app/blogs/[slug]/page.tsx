@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getArticle, articleExists, isValidSlug } from '@/lib/google-cms'
+import { getCachedArticle, articleExists, isValidSlug } from '@/lib/google-cms'
 
-// Enable ISR (1 hour)
+// Enable ISR
 export const dynamic = "force-static"
 export const revalidate = false;
 export const dynamicParams = true
@@ -31,7 +31,7 @@ export async function generateMetadata(
   }
 
   try {
-    const { metadata } = await getArticle(slug)
+    const { metadata } = await getCachedArticle(slug, 'blog')
 
     return {
       title: metadata.title,
@@ -74,7 +74,7 @@ export default async function BlogPage({ params }: BlogPageProps) {
 
   let article
   try {
-    article = await getArticle(slug)
+    article = await getCachedArticle(slug, 'blog')
   } catch (error) {
     console.error(`Error loading article ${slug}:`, error)
     notFound()
